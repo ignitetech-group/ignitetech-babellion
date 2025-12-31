@@ -228,7 +228,7 @@ export function AppHeader() {
                 <Info className="mr-2 h-4 w-4" />
                 <div className="flex items-center justify-between flex-1">
                   <span>Babellion</span>
-                  <Badge variant="secondary" className="ml-2 text-xs">v1.8.0</Badge>
+                  <Badge variant="secondary" className="ml-2 text-xs">v1.8.1</Badge>
                 </div>
               </DropdownMenuItem>
               <DropdownMenuSeparator />

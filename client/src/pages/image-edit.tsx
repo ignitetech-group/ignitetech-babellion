@@ -78,6 +78,8 @@ import { CollapsibleControls } from "@/components/collapsible-controls";
 import { WelcomeModal } from "@/components/welcome-modal";
 import { HelpPanel } from "@/components/help-panel";
 import { useFirstVisit } from "@/hooks/useFirstVisit";
+import { ViewToggle, type ViewMode } from "@/components/view-toggle";
+import { ThumbnailGrid, type ThumbnailGridItem } from "@/components/thumbnail-grid";
 import type { ImageEdit, ImageEditOutput, ImageEditMetadata, ImageEditOutputMetadata } from "@shared/schema";
 
 // Lazy-loaded output thumbnail component
@@ -272,6 +274,10 @@ export default function ImageEditPage() {
     const saved = localStorage.getItem("image-edit-left-panel-collapsed");
     return saved ? JSON.parse(saved) : false;
   });
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    const saved = localStorage.getItem("image-edit-view-mode");
+    return (saved as ViewMode) || "list";
+  });
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -291,6 +297,11 @@ export default function ImageEditPage() {
   useEffect(() => {
     localStorage.setItem("image-edit-left-panel-collapsed", JSON.stringify(isLeftPanelCollapsed));
   }, [isLeftPanelCollapsed]);
+
+  // Save view mode preference
+  useEffect(() => {
+    localStorage.setItem("image-edit-view-mode", viewMode);
+  }, [viewMode]);
 
   // Auto-focus search
   useEffect(() => {
@@ -840,6 +851,20 @@ export default function ImageEditPage() {
     return false;
   };
 
+  // Helper to get ownership tooltip text
+  const getOwnershipTooltip = (item: { userId: string; owner?: { firstName?: string | null; lastName?: string | null; email?: string | null } | null }) => {
+    if (!user) return "";
+    if (item.userId === user.id) {
+      return "Owned by me";
+    }
+    if (item.owner) {
+      const name = item.owner.firstName || item.owner.email || item.userId;
+      const email = item.owner.email ? ` (${item.owner.email})` : "";
+      return `Owned by ${name}${email}`;
+    }
+    return `Owned by ${item.userId}`;
+  };
+
   const canEditSelected = canEdit(selectedImageEditData);
 
   // Get source image URL
@@ -870,6 +895,7 @@ export default function ImageEditPage() {
             <Button variant="ghost" size="icon" onClick={handleToggleSearch}>
               <Search className="h-4 w-4" />
             </Button>
+            <ViewToggle value={viewMode} onChange={setViewMode} />
             <Button
               onClick={() => fileInputRef.current?.click()}
               disabled={isUploading}
@@ -900,6 +926,33 @@ export default function ImageEditPage() {
               {searchTerm ? "Try a different search term" : "Upload an image to get started"}
             </p>
           </div>
+        ) : viewMode === "grid" ? (
+          <ThumbnailGrid
+            items={imageEdits as ThumbnailGridItem[]}
+            selectedId={selectedImageEditId}
+            onSelect={(item) => {
+              handleSelectImageEdit(item as ImageEditMetadata);
+              setMobileHistoryOpen(false);
+            }}
+            thumbnailEndpoint="/api/image-edits"
+            canEdit={(item) => canEdit(item as ImageEditMetadata)}
+            onRename={(id, newTitle) => {
+              updateMutation.mutate(
+                { id, data: { title: newTitle } },
+                {
+                  onSuccess: () => {
+                    if (id === selectedImageEditId) {
+                      setTitle(newTitle);
+                    }
+                  },
+                }
+              );
+            }}
+            onDelete={(id) => setDeleteConfirmId(id)}
+            hasMore={hasNextPage}
+            onLoadMore={() => fetchNextPage()}
+            isLoadingMore={isFetchingNextPage}
+          />
         ) : (
           <div className="p-2 space-y-0.5" style={{ width: '100%', maxWidth: '20rem' }}>
             {imageEdits.map((imageEdit) => (
@@ -914,13 +967,20 @@ export default function ImageEditPage() {
                 }}
               >
                 <div className="flex items-start gap-2 min-w-0">
-                  <div className="flex-shrink-0 pt-0.5">
-                    {imageEdit.isPrivate ? (
-                      <Lock className="h-4 w-4 text-muted-foreground/60" />
-                    ) : (
-                      <Globe className="h-4 w-4 text-muted-foreground/60" />
-                    )}
-                  </div>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex-shrink-0 pt-0.5" onClick={(e) => e.stopPropagation()}>
+                        {imageEdit.isPrivate ? (
+                          <Lock className="h-4 w-4 text-muted-foreground/60" />
+                        ) : (
+                          <Globe className="h-4 w-4 text-muted-foreground/60" />
+                        )}
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="z-50">
+                      <p>{getOwnershipTooltip(imageEdit)}</p>
+                    </TooltipContent>
+                  </Tooltip>
                   <div className="flex-1 min-w-0">
                     {isRenamingId === imageEdit.id ? (
                       <Input
@@ -1085,6 +1145,9 @@ export default function ImageEditPage() {
                       <Search className="h-4 w-4" />
                     </Button>
                   )}
+                  {!isLeftPanelCollapsed && (
+                    <ViewToggle value={viewMode} onChange={setViewMode} />
+                  )}
                   <Button
                     size="sm"
                     onClick={() => fileInputRef.current?.click()}
@@ -1129,7 +1192,32 @@ export default function ImageEditPage() {
                       {searchTerm ? "Try a different search term" : "Upload an image to get started"}
                     </p>
                   </div>
+                ) : viewMode === "grid" ? (
+                  <ThumbnailGrid
+                    items={imageEdits as ThumbnailGridItem[]}
+                    selectedId={selectedImageEditId}
+                    onSelect={(item) => handleSelectImageEdit(item as ImageEditMetadata)}
+                    thumbnailEndpoint="/api/image-edits"
+                    canEdit={(item) => canEdit(item as ImageEditMetadata)}
+                    onRename={(id, newTitle) => {
+                      updateMutation.mutate(
+                        { id, data: { title: newTitle } },
+                        {
+                          onSuccess: () => {
+                            if (id === selectedImageEditId) {
+                              setTitle(newTitle);
+                            }
+                          },
+                        }
+                      );
+                    }}
+                    onDelete={(id) => setDeleteConfirmId(id)}
+                    hasMore={hasNextPage}
+                    onLoadMore={() => fetchNextPage()}
+                    isLoadingMore={isFetchingNextPage}
+                  />
                 ) : (
+                  <TooltipProvider>
                   <div className="p-2 space-y-0.5" style={{ width: '100%', maxWidth: '20rem' }}>
                     {imageEdits.map((imageEdit) => (
                       <Card
@@ -1140,13 +1228,20 @@ export default function ImageEditPage() {
                         onClick={() => handleSelectImageEdit(imageEdit)}
                       >
                         <div className="flex items-start gap-2 min-w-0">
-                          <div className="flex-shrink-0 pt-0.5">
-                            {imageEdit.isPrivate ? (
-                              <Lock className="h-4 w-4 text-muted-foreground/60" />
-                            ) : (
-                              <Globe className="h-4 w-4 text-muted-foreground/60" />
-                            )}
-                          </div>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="flex-shrink-0 pt-0.5" onClick={(e) => e.stopPropagation()}>
+                                {imageEdit.isPrivate ? (
+                                  <Lock className="h-4 w-4 text-muted-foreground/60" />
+                                ) : (
+                                  <Globe className="h-4 w-4 text-muted-foreground/60" />
+                                )}
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="right" className="z-50">
+                              <p>{getOwnershipTooltip(imageEdit)}</p>
+                            </TooltipContent>
+                          </Tooltip>
                           <div className="flex-1 min-w-0">
                             {isRenamingId === imageEdit.id ? (
                               <Input
@@ -1225,6 +1320,7 @@ export default function ImageEditPage() {
                       </Button>
                     )}
                   </div>
+                  </TooltipProvider>
                 )}
               </ScrollArea>
             )}
