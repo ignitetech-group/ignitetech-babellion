@@ -2,7 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { PanelLeftClose, Search, CheckCircle, Shield, Zap, Share, FileText, Image, Navigation, Upload, Calendar, BarChart3, Smartphone, Sparkles, ChevronDown, Pencil, TestTube, HelpCircle, FileJson } from "lucide-react";
+import { PanelLeftClose, Search, CheckCircle, Shield, Zap, Share, FileText, Image, Navigation, Upload, Calendar, BarChart3, Smartphone, Sparkles, ChevronDown, Pencil, TestTube, HelpCircle, FileJson, LayoutGrid } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 
@@ -47,7 +47,8 @@ function VersionHeader({ version, date, isLatest, isOpen }: VersionHeaderProps) 
  */
 export function ReleaseNotesModal({ open, onOpenChange }: ReleaseNotesModalProps) {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    "v1.8": true,
+    "v1.8.1": true,
+    "v1.8": false,
     "v1.7": false,
     "v1.6": false,
     "v1.5": false,
@@ -68,7 +69,7 @@ export function ReleaseNotesModal({ open, onOpenChange }: ReleaseNotesModalProps
         <DialogHeader className="text-left">
           <DialogTitle className="flex items-center gap-2 text-base">
             Release Notes
-            <Badge variant="secondary" className="text-xs">v1.8</Badge>
+            <Badge variant="secondary" className="text-xs">v1.8.1</Badge>
           </DialogTitle>
           <DialogDescription className="text-xs">
             What's new in this release
@@ -77,9 +78,36 @@ export function ReleaseNotesModal({ open, onOpenChange }: ReleaseNotesModalProps
         
         <ScrollArea className="max-h-[50vh] pr-4">
           <div className="space-y-4">
+            {/* Version 1.8.1 */}
+            <Collapsible open={openSections["v1.8.1"]} onOpenChange={() => toggleSection("v1.8.1")}>
+              <VersionHeader version="Version 1.8.1" date="Latest Release" isLatest isOpen={openSections["v1.8.1"]} />
+              <CollapsibleContent className="space-y-2 ml-4 pt-3">
+                <div className="flex gap-2 items-start">
+                  <LayoutGrid className="h-3 w-3 text-primary mt-2 flex-shrink-0" />
+                  <div>
+                    <span className="font-semibold text-xs">Thumbnail Grid View:</span>
+                    <span className="text-xs text-muted-foreground ml-1">
+                      Image Translation and Image Edit now offer a grid view option alongside the list view. Browse your images as thumbnails with hover tooltips showing name and owner—perfect for visual workflows.
+                    </span>
+                  </div>
+                </div>
+                <div className="flex gap-2 items-start">
+                  <CheckCircle className="h-3 w-3 text-primary mt-2 flex-shrink-0" />
+                  <div>
+                    <span className="font-medium text-xs">Fixed Tooltip Display:</span>
+                    <span className="text-xs text-muted-foreground ml-1">
+                      Ownership tooltips in Image Edit and Image Translate now appear above the scrollbar.
+                    </span>
+                  </div>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+
             {/* Version 1.8 */}
             <Collapsible open={openSections["v1.8"]} onOpenChange={() => toggleSection("v1.8")}>
-              <VersionHeader version="Version 1.8" date="Latest Release" isLatest isOpen={openSections["v1.8"]} />
+              <div className="pt-4 border-t">
+                <VersionHeader version="Version 1.8" date="December 2025" isOpen={openSections["v1.8"]} />
+              </div>
               <CollapsibleContent className="space-y-2 ml-4 pt-3">
                 <div className="flex gap-2 items-start">
                   <FileJson className="h-3 w-3 text-primary mt-2 flex-shrink-0" />

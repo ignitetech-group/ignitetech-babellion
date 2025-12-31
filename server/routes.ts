@@ -25,6 +25,7 @@ import {
 import { logInfo, logError } from "./vite";
 import { retryOnDatabaseError } from "./retry";
 import multer from "multer";
+import sharp from "sharp";
 
 /**
  * Register and configure all API routes on the given Express application and return a configured HTTP server.
@@ -1617,6 +1618,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get thumbnail image (resized for grid view)
+  app.get("/api/image-translations/:id/thumbnail", isAuthenticated, async (req: any, res) => {
+    try {
+      const metadata = await storage.getImageTranslationMetadata(req.params.id);
+      if (!metadata) {
+        return res.status(404).json({ message: "Image translation not found" });
+      }
+      const isOwner = metadata.userId === req.user.id;
+      const isPublic = !metadata.isPrivate;
+      if (!isOwner && !isPublic) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      const sourceImage = await storage.getImageTranslationSourceImage(req.params.id);
+      if (!sourceImage) {
+        return res.status(404).json({ message: "Source image not found" });
+      }
+      
+      // Resize image to 150x150 thumbnail
+      const imageBuffer = Buffer.from(sourceImage.sourceImageBase64, 'base64');
+      const thumbnailBuffer = await sharp(imageBuffer)
+        .resize(150, 150, { fit: 'cover', position: 'center' })
+        .jpeg({ quality: 80 })
+        .toBuffer();
+      
+      res.json({
+        thumbnailBase64: thumbnailBuffer.toString('base64'),
+        thumbnailMimeType: 'image/jpeg',
+      });
+    } catch (error) {
+      console.error("Error generating thumbnail:", error);
+      res.status(500).json({ message: "Failed to generate thumbnail" });
+    }
+  });
+
   // Get image translation outputs metadata only (without translated images)
   app.get("/api/image-translations/:id/outputs-metadata", isAuthenticated, async (req: any, res) => {
     try {
@@ -1880,6 +1915,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching source image:", error);
       res.status(500).json({ message: "Failed to fetch source image" });
+    }
+  });
+
+  // Get thumbnail image (resized for grid view)
+  app.get("/api/image-edits/:id/thumbnail", isAuthenticated, async (req: any, res) => {
+    try {
+      const metadata = await storage.getImageEditMetadata(req.params.id);
+      if (!metadata) {
+        return res.status(404).json({ message: "Image edit not found" });
+      }
+      const isOwner = metadata.userId === req.user.id;
+      const isPublic = !metadata.isPrivate;
+      if (!isOwner && !isPublic) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      const sourceImage = await storage.getImageEditSourceImage(req.params.id);
+      if (!sourceImage) {
+        return res.status(404).json({ message: "Source image not found" });
+      }
+      
+      // Resize image to 150x150 thumbnail
+      const imageBuffer = Buffer.from(sourceImage.sourceImageBase64, 'base64');
+      const thumbnailBuffer = await sharp(imageBuffer)
+        .resize(150, 150, { fit: 'cover', position: 'center' })
+        .jpeg({ quality: 80 })
+        .toBuffer();
+      
+      res.json({
+        thumbnailBase64: thumbnailBuffer.toString('base64'),
+        thumbnailMimeType: 'image/jpeg',
+      });
+    } catch (error) {
+      console.error("Error generating thumbnail:", error);
+      res.status(500).json({ message: "Failed to generate thumbnail" });
     }
   });
 

@@ -68,6 +68,8 @@ import { CollapsibleControls } from "@/components/collapsible-controls";
 import { WelcomeModal } from "@/components/welcome-modal";
 import { HelpPanel } from "@/components/help-panel";
 import { useFirstVisit } from "@/hooks/useFirstVisit";
+import { ViewToggle, type ViewMode } from "@/components/view-toggle";
+import { ThumbnailGrid, type ThumbnailGridItem } from "@/components/thumbnail-grid";
 
 // Component to lazily load translated images
 function TranslatedImage({ 
@@ -213,6 +215,10 @@ export default function ImageTranslate() {
     const saved = localStorage.getItem('image-translate-left-panel-collapsed');
     return saved ? JSON.parse(saved) : false;
   });
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    const saved = localStorage.getItem("image-translate-view-mode");
+    return (saved as ViewMode) || "list";
+  });
   const [stoppedPollingOutputs, setStoppedPollingOutputs] = useState<Set<string>>(new Set());
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -240,6 +246,11 @@ export default function ImageTranslate() {
   useEffect(() => {
     localStorage.setItem('image-translate-left-panel-collapsed', JSON.stringify(isLeftPanelCollapsed));
   }, [isLeftPanelCollapsed]);
+
+  // Save view mode preference
+  useEffect(() => {
+    localStorage.setItem("image-translate-view-mode", viewMode);
+  }, [viewMode]);
 
   // Fetch image translations with infinite scroll and server-side search
   // Note: list does NOT include sourceImageBase64 for performance
@@ -730,6 +741,20 @@ export default function ImageTranslate() {
     
     return false;
   };
+
+  // Helper to get ownership tooltip text
+  const getOwnershipTooltip = (item: { userId: string; owner?: { firstName?: string | null; lastName?: string | null; email?: string | null } | null }) => {
+    if (!user) return "";
+    if (item.userId === user.id) {
+      return "Owned by me";
+    }
+    if (item.owner) {
+      const name = item.owner.firstName || item.owner.email || item.userId;
+      const email = item.owner.email ? ` (${item.owner.email})` : "";
+      return `Owned by ${name}${email}`;
+    }
+    return `Owned by ${item.userId}`;
+  };
   
   // Check if current user can edit the selected image translation
   const canEditSelected = canEdit(selectedImageTranslation);
@@ -804,6 +829,7 @@ export default function ImageTranslate() {
             <Button variant="ghost" size="icon" onClick={handleToggleSearch}>
               <Search className="h-4 w-4" />
             </Button>
+            <ViewToggle value={viewMode} onChange={setViewMode} />
             <Button
               onClick={() => fileInputRef.current?.click()}
               disabled={isUploading}
@@ -833,7 +859,35 @@ export default function ImageTranslate() {
               {searchTerm ? "Try a different search term" : "Upload an image to get started"}
             </p>
           </div>
+        ) : viewMode === "grid" ? (
+          <ThumbnailGrid
+            items={imageTranslations as ThumbnailGridItem[]}
+            selectedId={selectedImageTranslationId}
+            onSelect={(item) => {
+              handleSelectImageTranslation(item as Omit<ImageTranslation, 'sourceImageBase64'>);
+              setMobileHistoryOpen(false);
+            }}
+            thumbnailEndpoint="/api/image-translations"
+            canEdit={(item) => canEdit(item as Omit<ImageTranslation, 'sourceImageBase64'>)}
+            onRename={(id, newTitle) => {
+              updateMutation.mutate(
+                { id, data: { title: newTitle } },
+                {
+                  onSuccess: () => {
+                    if (id === selectedImageTranslationId) {
+                      setTitle(newTitle);
+                    }
+                  },
+                }
+              );
+            }}
+            onDelete={(id) => setDeleteConfirmId(id)}
+            hasMore={hasNextPage}
+            onLoadMore={() => fetchNextPage()}
+            isLoadingMore={isFetchingNextPage}
+          />
         ) : (
+        <TooltipProvider>
         <div className="p-2 space-y-0.5" style={{ width: '100%', maxWidth: '20rem' }}>
           {imageTranslations.map((imageTranslation) => (
             <Card
@@ -847,13 +901,20 @@ export default function ImageTranslate() {
               }}
             >
               <div className="flex items-start gap-2 min-w-0">
-                <div className="flex-shrink-0 pt-0.5">
-                  {imageTranslation.isPrivate ? (
-                    <Lock className="h-4 w-4 text-muted-foreground/60" />
-                  ) : (
-                    <Globe className="h-4 w-4 text-muted-foreground/60" />
-                  )}
-                </div>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex-shrink-0 pt-0.5" onClick={(e) => e.stopPropagation()}>
+                      {imageTranslation.isPrivate ? (
+                        <Lock className="h-4 w-4 text-muted-foreground/60" />
+                      ) : (
+                        <Globe className="h-4 w-4 text-muted-foreground/60" />
+                      )}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="z-50">
+                    <p>{getOwnershipTooltip(imageTranslation)}</p>
+                  </TooltipContent>
+                </Tooltip>
                 <div className="flex-1 min-w-0">
                   {isRenamingId === imageTranslation.id ? (
                     <Input
@@ -936,6 +997,7 @@ export default function ImageTranslate() {
             </Button>
           )}
         </div>
+        </TooltipProvider>
         )}
       </ScrollArea>
     </div>
@@ -1000,6 +1062,9 @@ export default function ImageTranslate() {
                       <Search className="h-4 w-4" />
                     </Button>
                   )}
+                  {!isLeftPanelCollapsed && (
+                    <ViewToggle value={viewMode} onChange={setViewMode} />
+                  )}
                   <Button 
                     size="sm" 
                     onClick={() => fileInputRef.current?.click()} 
@@ -1037,7 +1102,32 @@ export default function ImageTranslate() {
                       {searchTerm ? "Try a different search term" : "Upload an image to get started"}
                     </p>
                   </div>
+                ) : viewMode === "grid" ? (
+                  <ThumbnailGrid
+                    items={imageTranslations as ThumbnailGridItem[]}
+                    selectedId={selectedImageTranslationId}
+                    onSelect={(item) => handleSelectImageTranslation(item as Omit<ImageTranslation, 'sourceImageBase64'>)}
+                    thumbnailEndpoint="/api/image-translations"
+                    canEdit={(item) => canEdit(item as Omit<ImageTranslation, 'sourceImageBase64'>)}
+                    onRename={(id, newTitle) => {
+                      updateMutation.mutate(
+                        { id, data: { title: newTitle } },
+                        {
+                          onSuccess: () => {
+                            if (id === selectedImageTranslationId) {
+                              setTitle(newTitle);
+                            }
+                          },
+                        }
+                      );
+                    }}
+                    onDelete={(id) => setDeleteConfirmId(id)}
+                    hasMore={hasNextPage}
+                    onLoadMore={() => fetchNextPage()}
+                    isLoadingMore={isFetchingNextPage}
+                  />
                 ) : (
+                <TooltipProvider>
                 <div className="p-2 space-y-0.5" style={{ width: '100%', maxWidth: '20rem' }}>
                   {imageTranslations.map((imageTranslation) => (
                     <Card
@@ -1048,13 +1138,20 @@ export default function ImageTranslate() {
                       onClick={() => handleSelectImageTranslation(imageTranslation)}
                     >
                       <div className="flex items-start gap-2 min-w-0">
-                        <div className="flex-shrink-0 pt-0.5">
-                          {imageTranslation.isPrivate ? (
-                            <Lock className="h-4 w-4 text-muted-foreground/60" />
-                          ) : (
-                            <Globe className="h-4 w-4 text-muted-foreground/60" />
-                          )}
-                        </div>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex-shrink-0 pt-0.5" onClick={(e) => e.stopPropagation()}>
+                              {imageTranslation.isPrivate ? (
+                                <Lock className="h-4 w-4 text-muted-foreground/60" />
+                              ) : (
+                                <Globe className="h-4 w-4 text-muted-foreground/60" />
+                              )}
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="right" className="z-50">
+                            <p>{getOwnershipTooltip(imageTranslation)}</p>
+                          </TooltipContent>
+                        </Tooltip>
                         <div className="flex-1 min-w-0">
                           {isRenamingId === imageTranslation.id ? (
                             <Input
@@ -1137,6 +1234,7 @@ export default function ImageTranslate() {
                     </Button>
                   )}
                 </div>
+                </TooltipProvider>
                 )}
               </ScrollArea>
             )}
