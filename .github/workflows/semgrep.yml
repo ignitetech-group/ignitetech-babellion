@@ -1,0 +1,31 @@
+name: Semgrep
+on:
+  workflow_dispatch:
+    inputs:
+      target_branch:
+        description: 'Branch to run Semgrep against'
+        required: false
+        default: 'main'
+  push:
+    branches:
+      - master
+      - main
+      - develop
+  pull_request: {}
+  schedule:
+    # If you want to run Semgrep automatically, then put something random to avoid cross repository runs at the same time
+    #- cron: '45 17 * * 3'
+jobs:
+  semgrep:
+    name: semgrep/ci
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+    container:
+      image: semgrep/semgrep
+    if: (github.actor != 'dependabot[bot]')
+    steps:
+      - uses: actions/checkout@v4
+      - run: semgrep ci
