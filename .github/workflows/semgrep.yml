@@ -12,7 +12,7 @@ on:
       - main
       - develop
   pull_request: {}
-  schedule:
+  #schedule:
     # If you want to run Semgrep automatically, then put something random to avoid cross repository runs at the same time
     #- cron: '45 17 * * 3'
 jobs:
@@ -28,4 +28,7 @@ jobs:
     if: (github.actor != 'dependabot[bot]')
     steps:
       - uses: actions/checkout@v4
+        with:
+          # For workflow_dispatch, checkout the requested branch if given
+          ref: ${{ github.event.inputs.target_branch || github.ref }}
       - run: semgrep ci
