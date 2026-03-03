@@ -12,23 +12,23 @@ on:
       - main
       - develop
   pull_request: {}
+
+  # If you want to schedule Semgrep runs, then put some random time
+  # to avoid cross-running in multiple repositories at the same time
+
   #schedule:
-    # If you want to run Semgrep automatically, then put something random to avoid cross repository runs at the same time
     #- cron: '45 17 * * 3'
+
 jobs:
   semgrep:
     name: semgrep/ci
-    runs-on: ubuntu-latest
     permissions:
       contents: read
-    env:
-      SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
-    container:
-      image: semgrep/semgrep
-    if: (github.actor != 'dependabot[bot]')
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          # For workflow_dispatch, checkout the requested branch if given
-          ref: ${{ github.event.inputs.target_branch || github.ref }}
-      - run: semgrep ci
+      pull-requests: write
+      issues: write
+    uses: ignitetech-group/semgrep/.github/workflows/semgrep-reusable.yml@v1
+    secrets: inherit
+    with:
+      target_branch: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_branch || github.ref_name }}
+      is_pr: ${{ github.event_name == 'pull_request' }}
+      pr_number: ${{ github.event.pull_request.number || '' }}
